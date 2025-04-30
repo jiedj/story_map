@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>武汉旅游数据变化 (折线绘制动画)</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', 'SimHei', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        .chart-container {
+            position: relative;
+            width: 90vw;
+            max-width: 950px;
+            height: 65vh;
+            min-height: 400px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        canvas {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+        }
+    </style>
+    <!-- 1. 引入 Chart.js 库 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="chart-container">
+        <canvas id="myChart"></canvas>
+    </div>
+
+    <script>
+        // 2. 原始数据
+        const rawData = [
+            { year: 2018, tourismNum: 2049.11, revenue: 57.54 },
+            { year: 2019, tourismNum: 2359.43, revenue: 65.34 },
+            { year: 2020, tourismNum: 1386.79, revenue: 25.41 },
+            { year: 2021, tourismNum: 1401.61, revenue: 31.91 },
+            { year: 2022, tourismNum: 1412.82, revenue: 37.12 },
+            { year: 2023, tourismNum: 2445.52, revenue: 71.18 },
+            { year: 2024, tourismNum: 2550.48, revenue: 75.92 }
+        ];
+
+        // 3. 准备 Chart.js 需要的数据格式
+        const years = rawData.map(item => item.year);
+        const fullTourismNumbers = rawData.map(item => item.tourismNum);
+        const fullTourismRevenue = rawData.map(item => item.revenue);
+        const numberOfYears = years.length;
+
+        // **修改点 1: 初始化数据为 NaN 数组**
+        const initialNaNData = () => Array(numberOfYears).fill(NaN);
+
+        // 4. 获取 Canvas 上下文并配置图表
+        const ctx = document.getElementById('myChart').getContext('2d');
+        const config = {
+            type: 'line',
+            data: {
+                // **修改点 2: 初始化时就提供所有年份标签**
+                labels: years,
+                datasets: [
+                    {
+                        label: '旅游人数/万人',
+                        // **修改点 3: 使用 NaN 初始化数据**
+                        data: initialNaNData(),
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        yAxisID: 'y',
+                        tension: 0.1,
+                        fill: false,
+                        spanGaps: true // 允许线条跨越 NaN 点连接有效点（虽然这里是逐个添加）
+                    },
+                    {
+                        label: '旅游收入/亿元',
+                        // **修改点 3: 使用 NaN 初始化数据**
+                        data: initialNaNData(),
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        yAxisID: 'y1',
+                        tension: 0.1,
+                        fill: false,
+                        spanGaps: true
+                    }
+                ]
+            },
+            options: {
+                animation: false, // 禁用 Chart.js 自身的动画，我们控制绘制过程
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: '年份'
+                        },
+                        // 不需要 autoSkip: false 了，因为标签一开始就全显示
+                    },
+                    y: { // 第一个 Y 轴 (左侧) - 旅游人数
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '人数/万人'
+                        }
+                    },
+                    y1: { // 第二个 Y 轴 (右侧) - 旅游收入
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '收入/亿元'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '武汉年度旅游数据变化趋势 (折线绘制动画)',
+                        font: {
+                            size: 18
+                        }
+                    },
+                    tooltip: {
+                         callbacks: {
+                             label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                // 检查值是否为 NaN (因为动画未到达的点是NaN)
+                                if (context.parsed.y !== null && !isNaN(context.parsed.y)) {
+                                    label += context.parsed.y;
+                                } else {
+                                    // 对于尚未绘制或无效的点，可以不显示或显示特定文本
+                                    label += '...'; // 或者返回空字符串 ''
+                                }
+                                return label;
+                            }
+                        }
+                    },
+                     legend: {
+                        position: 'top',
+                    }
+                }
+            }
+        };
+
+        // 5. 动画控制逻辑
+        const intervalDuration = 500; // *** 调整动画速度 ***
+        const pauseDuration = 10000;
+        let currentYearIndex = 0;
+        let chart = null;
+        let animationInterval = null;
+
+        function startAnimation() {
+            currentYearIndex = 0;
+            // **修改点 4: 重置动画时的操作**
+            if (chart) {
+                 // 只需要重置数据为 NaN，标签不用动
+                 chart.data.datasets.forEach(dataset => {
+                    dataset.data = initialNaNData();
+                 });
+                 chart.update('none'); // 更新以显示空线条
+            } else {
+                 // 首次创建图表，config 已包含完整标签和 NaN 数据
+                 chart = new Chart(ctx, config);
+            }
+
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+
+             // 延迟启动动画
+             setTimeout(() => {
+                 animationInterval = setInterval(animateChart, intervalDuration);
+             }, 150);
+        }
+
+        function animateChart() {
+            if (currentYearIndex < numberOfYears) {
+                 // **修改点 5: 更新对应索引的数据点，而不是 push**
+                 chart.data.datasets[0].data[currentYearIndex] = fullTourismNumbers[currentYearIndex];
+                 chart.data.datasets[1].data[currentYearIndex] = fullTourismRevenue[currentYearIndex];
+
+                chart.update('none'); // 更新图表以绘制新线段
+                currentYearIndex++;
+            } else {
+                // 动画完成
+                clearInterval(animationInterval);
+                animationInterval = null;
+                setTimeout(startAnimation, pauseDuration); // 暂停后重新开始
+            }
+        }
+
+        // 6. 页面加载后首次启动动画
+        startAnimation();
+
+    </script>
+</body>
+</html>
