@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>李白诗意足迹地图</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+  body {
+    margin: 0;
+    font-family: "KaiTi", serif;
+    background: #fdf8f3;
+  }
+  #map {
+    width: 100vw;
+    height: 100vh;
+  }
+  /* 🌸 控制面板样式，浮在地图之上 */
+  .control-panel {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    z-index: 1000; /* ✅ 保证在地图上层 */
+    background: rgba(255, 255, 255, 0.92);
+    padding: 10px 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  }
+  h2 {
+    margin: 0;
+    margin-bottom: 6px;
+    font-size: 18px;
+    color: #5a3e36;
+    text-align: center;
+  }
+  button {
+    font-size: 15px;
+    margin: 5px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    background: #8b4513;
+    color: white;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+  button:hover {
+    background: #a0522d;
+  }
+</style>
+</head>
+
+<body>
+<div id="map"></div>
+
+<!-- 控制面板：浮动按钮 -->
+<div class="control-panel">
+  <h2>📜 李白诗意足迹</h2>
+  <button id="playBtn">▶ 播放旅程</button>
+  <button id="pauseBtn">⏸ 暂停</button>
+</div>
+
+<script>
+/* === 李白足迹数据 === */
+const liBaiData = [
+  {"place":"绵阳","province":"四川省绵阳市","latitude":31.47,"longitude":104.68,"year":701,"event":"出生地","poem":"少年行","excerpt":"五陵年少争缠头，一曲红绡不知数。","type":"青年豪情"},
+  {"place":"长安","province":"陕西省西安市","latitude":34.34,"longitude":108.94,"year":724,"event":"入长安求仕","poem":"古风其十九","excerpt":"大雅久不作，吾衰竟谁陈。","type":"求仕失意"},
+  {"place":"洛阳","province":"河南省洛阳市","latitude":34.62,"longitude":112.45,"year":726,"event":"访友作诗","poem":"忆东山二首","excerpt":"不知乘月几人归，落月摇情满江树。","type":"思友情感"},
+  {"place":"黄鹤楼","province":"湖北省武汉市","latitude":30.56,"longitude":114.31,"year":728,"event":"游览作诗","poem":"黄鹤楼送孟浩然之广陵","excerpt":"孤帆远影碧空尽，唯见长江天际流。","type":"送别抒情"},
+  {"place":"庐山","province":"江西省九江市","latitude":29.57,"longitude":115.98,"year":732,"event":"游山写景","poem":"望庐山瀑布","excerpt":"飞流直下三千尺，疑是银河落九天。","type":"山水壮丽"},
+  {"place":"宣城","province":"安徽省宣城市","latitude":30.94,"longitude":118.76,"year":735,"event":"任职与创作","poem":"宣城见杜鹃花","excerpt":"蜀国曾闻子规鸟，宣城还见杜鹃花。","type":"思乡感怀"},
+  {"place":"夜郎","province":"贵州省遵义市","latitude":27.73,"longitude":106.92,"year":759,"event":"被贬途中","poem":"夜郎寄内","excerpt":"夜郎西去月悠悠，水宿风餐不自由。","type":"失意幽怨"},
+  {"place":"当涂","province":"安徽省马鞍山市","latitude":31.57,"longitude":118.49,"year":762,"event":"病逝地","poem":"临终诗","excerpt":"浮云游子意，落日故人情。","type":"感慨人生"}
+];
+const emotionColors = {
+  "青年豪情": "#e67e22",
+  "求仕失意": "#95a5a6",
+  "思友情感": "#2ecc71",
+  "送别抒情": "#3498db",
+  "山水壮丽": "#9b59b6",
+  "思乡感怀": "#f1c40f",
+  "失意幽怨": "#34495e",
+  "感慨人生": "#d35400"
+};
+/* === 初始化地图 === */
+const map = L.map('map').setView([31, 110], 5);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 10,
+  attribution: '© OpenStreetMap'
+}).addTo(map);
+
+/* === 标记点与连线逻辑 === */
+let markers = [];
+let linePoints = [];
+let polyline = null;
+let playbackTimer = null;
+let currentIndex = 0;
+liBaiData.forEach(item => {
+  const color = emotionColors[item.type] || "gray";
+  const marker = L.circleMarker([item.latitude, item.longitude], {
+    radius: 7, color: color, fillColor: color, fillOpacity: 0.8
+  }).bindPopup(`
+    <b>${item.place}（${item.year}年）</b><br>
+    ${item.event}<br>
+    《${item.poem}》：${item.excerpt}<br>
+    <i>${item.type}</i>
+  `);
+  markers.push(marker);
+  marker.addTo(map);
+});
+
+/* === 语音朗诵 === */
+function speakPoem(text){
+  const msg = new SpeechSynthesisUtterance(text);
+  msg.lang = 'zh-CN';
+  msg.rate = 0.9;
+  speechSynthesis.speak(msg);
+}
+
+/* === 播放旅程 === */
+function playJourney(){
+  if(currentIndex >= liBaiData.length) currentIndex = 0;
+  const item = liBaiData[currentIndex];
+  map.setView([item.latitude, item.longitude], 7, {animate: true});
+  markers[currentIndex].openPopup();
+  speakPoem(`公元${item.year}年，李白在${item.place}：${item.excerpt}`);
+
+  linePoints.push([item.latitude, item.longitude]);
+  if(polyline) polyline.setLatLngs(linePoints);
+  else polyline = L.polyline(linePoints, {color:"#8b4513", weight:4, opacity:0.8}).addTo(map);
+
+  currentIndex++;
+  if(currentIndex < liBaiData.length) playbackTimer = setTimeout(playJourney, 5500);
+}
+
+/* === 控制按钮 === */
+document.getElementById("playBtn").onclick = ()=>{
+  clearTimeout(playbackTimer);
+  linePoints = []; currentIndex=0;
+  if(polyline){ map.removeLayer(polyline); polyline=null; }
+  playJourney();
+};
+document.getElementById("pauseBtn").onclick = ()=>{
+  clearTimeout(playbackTimer);
+  speechSynthesis.cancel();
+};
+</script>
+</body>
+</html>
